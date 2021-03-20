@@ -23,6 +23,10 @@ mongoose
 //import routes
 const authRoutes = require("./routes/auth")
 const userRoutes = require("./routes/user")
+const categoryRoutes = require("./routes/category")
+const tagRoutes = require("./routes/tag")
+const blogRoutes = require("./routes/blog")
+const photoRoutes = require("./routes/photo")
 //app middlewares
 app.use(morgan("dev"))
 app.use(bodyParser.json())
@@ -37,6 +41,14 @@ app.get("/", verifyToken)
 app.use("/api", authRoutes)
 
 app.use("/api", userRoutes)
+
+app.use("/api", categoryRoutes)
+
+app.use("/api", tagRoutes)
+
+app.use("/api", blogRoutes)
+
+app.use("/api", photoRoutes)
 
 app.use(errorHandler)
 

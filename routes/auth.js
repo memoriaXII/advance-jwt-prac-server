@@ -2,6 +2,7 @@ const express = require("express")
 const router = express.Router()
 //import controller
 const {
+  logout,
   signup,
   signin,
   accountActivation,
@@ -11,6 +12,9 @@ const {
   googleLogin,
   facebookLogin,
   linkedinLogin,
+  verifyToken,
+  me,
+  requireSignin,
 } = require("../controllers/auth")
 
 //import validators
@@ -22,11 +26,17 @@ const {
 } = require("../validators/auth")
 const { runValidation } = require("../validators")
 
+router.get("/verify-token", verifyToken)
 router.post("/signup", userSignupValidator, runValidation, signup)
+router.delete("/logout", logout)
 router.post("/account-activation", accountActivation)
 router.post("/signin", userSigninValidator, runValidation, signin)
 router.post("/refresh-token", refreshToken)
+
+router.get("/me", me)
+
 //forogot reset password
+
 router.put(
   "/forgot-password",
   forgotPasswordValidator,

@@ -1,6 +1,8 @@
 require("dotenv").config()
 const _ = require("lodash")
+const { nanoid } = require("nanoid")
 const User = require("../models/user")
+const Token = require("../models/token")
 const jwt = require("jsonwebtoken")
 const expressJwt = require("express-jwt")
 const createError = require("http-errors")
@@ -25,8 +27,25 @@ exports.signup = (req, res) => {
     const token = jwt.sign(
       { name, email, password },
       process.env.JWT_ACCOUNT_ACTIVATION,
-      { expiresIn: "10m" }
+      { expiresIn: "20m" }
     )
+
+    //  let username = nanoid()
+    //  let profile = `${process.env.CLIENT_URL}/profile/${username}`
+    //  // set the user using function constructors
+    //  let newUser = new User({ name, email, password, profile, username })
+    //  //error handling
+    //  newUser.save((err, success) => {
+    //    if (err) {
+    //      return res.status(400).json({
+    //        error: err,
+    //      })
+    //    }
+    //    res.json({
+    //      message: "Sign up success! Please signin",
+    //    })
+    //  })
+
     const emailData = {
       from: process.env.EMAIL_FROM,
       to: email,
@@ -48,6 +67,38 @@ exports.signup = (req, res) => {
   })
 }
 
+exports.me = function (req, res) {
+  if (req.headers && req.headers.authorization) {
+    const authHeader = req.headers["authorization"]
+    const bearerToken = authHeader.split(" ")
+    const token = bearerToken[1]
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        if (err.name === "JsonWebTokenError") {
+          return res.status(403).json({
+            error: createError.Unauthorized(),
+          })
+        } else {
+          return res.status(403).json({
+            error: createError.Unauthorized(err.message),
+          })
+        }
+      }
+      console.log(decoded, "decoded")
+      var userId = decoded._id
+      // Fetch the user by id
+      User.findOne({ _id: userId }).then(function (user) {
+        // Do something with the user
+        const { _id, name, email, role } = user
+        return res.status(200).json({
+          user: { _id, name, email, role },
+        })
+      })
+    })
+  }
+}
+
 exports.accountActivation = (req, res) => {
   const { token } = req.body
   if (token) {
@@ -62,18 +113,36 @@ exports.accountActivation = (req, res) => {
           })
         }
         const { name, email, password } = jwt.decode(token)
-        const user = new User({ name, email, password })
-        user.save((err, user) => {
+
+        //
+        let username = nanoid()
+        let profile = `${process.env.CLIENT_URL}/profile/${username}`
+        // set the user using function constructors
+        let newUser = new User({ name, email, password, profile, username })
+        //error handling
+        newUser.save((err, success) => {
           if (err) {
-            console.log("SAVE USER IN ACCOUNT ACTIVATION ERROR", err)
-            return res.status(401).json({
-              error: "Error saving user in database. Try signup again",
+            return res.status(400).json({
+              error: err,
             })
           }
-          return res.status(200).json({
-            message: "Signup success. Please signin",
+          res.json({
+            message: "Sign up success! Please signin",
           })
         })
+
+        //
+        // user.save((err, user) => {
+        //   if (err) {
+        //     console.log("SAVE USER IN ACCOUNT ACTIVATION ERROR", err)
+        //     return res.status(401).json({
+        //       error: "Error saving user in database. Try signup again",
+        //     })
+        //   }
+        //   return res.status(200).json({
+        //     message: "Signup success. Please signin",
+        //   })
+        // })
       }
     )
   } else {
@@ -100,9 +169,15 @@ exports.signin = (req, res) => {
     }
     //generate a token and send to client
     const authToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "1d",
     })
-    const refreshToken = signRefresToken(user._id)
+    const refreshToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      {
+        expiresIn: "1y",
+      }
+    )
     const { _id, name, email, role } = user
 
     return res.json({
@@ -112,6 +187,18 @@ exports.signin = (req, res) => {
     })
   })
   //exec is provide by mongoose
+}
+
+exports.logout = async (req, res) => {
+  try {
+    //delete the refresh token saved in database:
+    const { refreshToken } = req.body
+    await Token.findOneAndDelete({ token: refreshToken })
+    return res.status(200).json({ success: "User logged out!" })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: "Internal Server Error!" })
+  }
 }
 
 exports.verifyToken = (req, res, next) => {
@@ -141,15 +228,46 @@ exports.refreshToken = async (req, res, next) => {
   try {
     const { refreshToken } = req.body
     if (!refreshToken) throw createError.BadRequest()
-    const userId = await verifyRefreshToken(refreshToken)
-    const accessToken = jwt.sign({ _id: userId }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    })
-    const refToken = signRefresToken(userId)
-    res.send({
-      accessToken: accessToken,
-      refreshToken: refToken,
-    })
+    console.log(refreshToken, "took")
+    jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      (err, payload) => {
+        if (err) {
+          console.log(err, "error")
+          if (err.name === "JsonWebTokenError") {
+            return res.status(403).json({
+              error: createError.Unauthorized(),
+            })
+          } else {
+            return res.status(401).json({
+              error: createError.Unauthorized(err.message),
+            })
+          }
+        }
+        const accessToken = jwt.sign(
+          { _id: payload._id },
+          process.env.JWT_SECRET,
+          {
+            expiresIn: "1d",
+          }
+        )
+        const refToken = jwt.sign(
+          { _id: payload._id },
+          process.env.JWT_REFRESH_TOKEN_SECRET,
+          {
+            expiresIn: "10d",
+          }
+        )
+        res.status(200).send({
+          accessToken: accessToken,
+          refreshToken: refToken,
+        })
+      }
+    )
+
+    // const userId = await verifyRefreshToken(refreshToken)
+    // console.log(userId, "userid")
   } catch (error) {
     next(error)
   }
@@ -171,7 +289,8 @@ const verifyRefreshToken = (refreshToken) => {
           })
         }
       }
-      const userId = payload.aud
+      const userId = payload._id
+      console.log(payload, userId, "omg")
       return userId
     }
   )
@@ -193,6 +312,25 @@ exports.requireSignin = expressJwt({
   algorithms: ["sha1", "RS256", "HS256"],
 })
 
+exports.authMiddleware = (req, res, next) => {
+  User.findById({ _id: req.user._id }).exec((err, user) => {
+    if (err || !user) {
+      return res.status(400).json({
+        error: "User not found",
+      })
+    }
+    req.profile = user
+    next()
+  })
+}
+
+exports.read = (req, res) => {
+  console.log(req, "req")
+  req.profile.hashed_password = undefined
+  req.profile.resetPasswordLink = undefined
+  return res.json(req.profile)
+}
+
 exports.adminMiddleware = (req, res, next) => {
   User.findById({ _id: req.user._id }).exec((err, user) => {
     if (err || !user) {
@@ -200,7 +338,7 @@ exports.adminMiddleware = (req, res, next) => {
         error: "User not found",
       })
     }
-    if (user.role !== "admin") {
+    if (user.role !== 1) {
       return res.status(400).json({
         error: "Admin resource. Access denied",
       })
