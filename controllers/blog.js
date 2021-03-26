@@ -18,7 +18,7 @@ exports.create = (req, res) => {
         error: "image could not upload",
       })
     }
-    const { title, body, categories, tags, photo, previewDesc } = fields
+    const { title, body, categories, photo, previewDesc } = fields
     if (!title || !title.length) {
       return res.status(400).json({
         error: "title is required",
@@ -39,11 +39,11 @@ exports.create = (req, res) => {
         error: "at least one category is required",
       })
     }
-    if (!tags || !tags.length === 0) {
-      return res.status(400).json({
-        error: "at least one tag is required",
-      })
-    }
+    // if (!tags || !tags.length === 0) {
+    //   return res.status(400).json({
+    //     error: "at least one tag is required",
+    //   })
+    // }
 
     let blog = new Blog()
     blog.title = title
