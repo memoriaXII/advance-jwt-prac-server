@@ -58,7 +58,7 @@ exports.create = (req, res) => {
     blog.photo = photo
     //categories and tags
     let arrayOfCategories = categories.split(",")
-    let arrayOfTags = tags.split(",")
+    // let arrayOfTags = tags.split(",")
 
     // if (files.photo) {
     //   if (files.photo.size > 10000000) {
@@ -86,21 +86,22 @@ exports.create = (req, res) => {
           return res.status(400).json({
             error: errorHandler(err),
           })
-        } else {
-          Blog.findByIdAndUpdate(
-            result._id,
-            { $push: { tags: arrayOfTags } },
-            { new: true }
-          ).exec((err, result) => {
-            if (err) {
-              return res.status(400).json({
-                error: errorHandler(err),
-              })
-            } else {
-              res.status(200).json(result)
-            }
-          })
         }
+        // else {
+        //   Blog.findByIdAndUpdate(
+        //     result._id,
+        //     { $push: { tags: arrayOfTags } },
+        //     { new: true }
+        //   ).exec((err, result) => {
+        //     if (err) {
+        //       return res.status(400).json({
+        //         error: errorHandler(err),
+        //       })
+        //     } else {
+        //       res.status(200).json(result)
+        //     }
+        //   })
+        // }
       })
     })
   })
